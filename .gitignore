@@ -1,0 +1,9 @@
+node_modules/
+uploads/
+.env
+*.log
+.wwebjs_auth/
+.wwebjs_cache/
+received-docs/
+data/
+test_*.pdf

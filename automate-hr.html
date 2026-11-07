@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automate HR — OneStop KWC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- PDF.js for browser-side PDF text extraction -->
+<script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<!-- mammoth.js for DOCX extraction -->
+<script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#1e40af;--blue-lt:#3b82f6;--blue-bg:#eff6ff;
+  --green:#059669;--green-bg:#d1fae5;
+  --red:#dc2626;--red-bg:#fee2e2;
+  --amber:#d97706;--amber-bg:#fef3c7;
+  --bg:#f1f5f9;--card:#fff;--border:#e2e8f0;
+  --text:#1e293b;--muted:#64748b;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 4px 12px rgba(0,0,0,.10);
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;min-height:100vh}
+
+/* header */
+.header{background:var(--blue);color:#fff;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.header-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;min-height:60px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{font-size:26px}
+.logo-title{font-size:18px;font-weight:700;letter-spacing:-.3px;display:block}
+.logo-sub{font-size:11px;opacity:.75;letter-spacing:.2px;display:block}
+.tab-nav{display:flex;gap:4px}
+.tab-btn{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.8);padding:8px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s,color .15s;display:flex;align-items:center;gap:6px}
+.tab-btn:hover{background:rgba(255,255,255,.2);color:#fff}
+.tab-btn.active{background:#fff;color:var(--blue);font-weight:600}
+.badge{background:var(--blue);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;min-width:20px;text-align:center}
+.tab-btn.active .badge{background:var(--green)}
+
+/* main */
+.main{max-width:1200px;margin:0 auto;padding:28px 24px 60px}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* card */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px;box-shadow:var(--shadow)}
+.card h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.text-muted{color:var(--muted)}
+
+/* upload */
+.upload-card{margin-bottom:24px}
+.dropzone{border:2px dashed var(--border);border-radius:10px;background:#f8fafc;padding:40px 20px;text-align:center;transition:border-color .2s,background .2s;cursor:pointer;margin:16px 0}
+.dropzone.dragover{border-color:var(--blue-lt);background:var(--blue-bg)}
+.dz-icon{font-size:40px;margin-bottom:10px}
+.dz-title{font-size:16px;font-weight:600;margin-bottom:4px}
+.dz-sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+
+/* staged */
+.staged-list{margin:12px 0 20px}
+.staged-header{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.staged-files{list-style:none;display:flex;flex-direction:column;gap:6px}
+.staged-files li{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 12px;font-size:13px}
+.fi-name{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi-size{color:var(--muted);font-size:12px}
+.fi-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0 2px;line-height:1}
+.fi-remove:hover{color:var(--red)}
+
+/* criteria */
+.criteria-box{margin:20px 0 24px}
+.criteria-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.criteria-chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:13px;font-weight:600;padding:8px 18px;border-radius:8px;border:none;cursor:pointer;transition:filter .15s,opacity .15s;white-space:nowrap;text-decoration:none}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:not(:disabled):hover{filter:brightness(.93)}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-outline{background:transparent;color:var(--blue);border:1.5px solid var(--blue)}
+.btn-wa{background:#25d366;color:#fff}
+.btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
+.btn-lg{padding:10px 24px;font-size:14px}
+.link-btn{background:none;border:none;color:var(--blue-lt);font-size:13px;cursor:pointer;text-decoration:underline;font-family:inherit}
+
+/* progress */
+.progress-wrap{text-align:center;padding:28px}
+.progress-bar-track{background:var(--border);border-radius:99px;height:6px;overflow:hidden;margin-bottom:12px}
+.progress-bar-fill{background:linear-gradient(90deg,var(--blue),var(--blue-lt));height:100%;width:0;border-radius:99px;transition:width .3s ease}
+
+/* results */
+.results-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px}
+.results-stats{font-size:14px;font-weight:600;flex:1}
+.stat-green{color:var(--green)}.stat-red{color:var(--red)}.stat-amber{color:var(--amber)}
+.filter-group{display:flex;gap:6px}
+.pill{background:var(--card);border:1.5px solid var(--border);color:var(--muted);border-radius:20px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.pill:hover{border-color:var(--blue-lt);color:var(--blue)}
+.pill.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.bulk-btns{display:flex;gap:8px}
+
+/* results grid */
+.results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.cand-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;transition:box-shadow .15s}
+.cand-card:hover{box-shadow:var(--shadow-md)}
+.cand-card.status-shortlisted{border-top:3px solid var(--green)}
+.cand-card.status-review{border-top:3px solid var(--amber)}
+.cand-card.status-rejected{border-top:3px solid var(--red)}
+.cand-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px}
+.status-badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:3px 10px;border-radius:20px}
+.badge-shortlisted{background:var(--green-bg);color:var(--green)}
+.badge-review{background:var(--amber-bg);color:var(--amber)}
+.badge-rejected{background:var(--red-bg);color:var(--red)}
+.cand-filename{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.cand-info{padding:0 16px 12px}
+.cand-name{font-size:16px;font-weight:700;margin-bottom:4px}
+.cand-contact{display:flex;flex-direction:column;gap:2px}
+.cand-contact span{font-size:12px;color:var(--muted)}
+.contact-val{color:var(--text)}
+.no-contact{color:var(--muted);font-style:italic;font-size:12px}
+.cand-criteria{border-top:1px solid var(--border);padding:10px 16px;display:flex;flex-direction:column;gap:5px}
+.crit-row{display:flex;align-items:flex-start;gap:8px;font-size:12px}
+.crit-icon{flex-shrink:0;font-size:13px;width:18px;text-align:center;margin-top:1px}
+.crit-body{flex:1}
+.crit-label{font-weight:600;margin-right:4px}
+.crit-reason{color:var(--muted);display:block;font-size:11px;margin-top:1px}
+.crit-pass{color:var(--green)}.crit-fail{color:var(--red)}.crit-warn{color:var(--amber)}
+.cand-actions{margin-top:auto;border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap}
+
+/* shortlisted tab */
+.sl-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.sl-header h2{font-size:20px;font-weight:700}
+
+/* email tab */
+.email-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:20px}
+.info-banner{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px;margin:16px 0}
+.ep-wrap{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:24px}
+.ep-label{background:var(--bg);padding:10px 16px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)}
+.ep-meta{background:var(--bg);padding:8px 16px;border-bottom:1px solid var(--border);display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.ep-meta strong{color:var(--text)}
+.ep-body{padding:20px;font-size:13px;line-height:1.7;max-height:380px;overflow-y:auto;white-space:pre-wrap;font-family:'Inter',sans-serif}
+.email-list-header{display:grid;grid-template-columns:1fr 1fr 120px 120px;gap:8px;padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);border-bottom:1px solid var(--border)}
+.email-row{display:grid;grid-template-columns:1fr 1fr 120px 120px;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center;font-size:13px;transition:background .1s}
+.email-row:hover{background:var(--bg)}.email-row:last-child{border-bottom:none}
+.email-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-addr{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.es-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+.es-pending{background:var(--blue-bg);color:var(--blue)}
+.es-sent{background:var(--green-bg);color:var(--green)}
+.es-no-email{background:var(--amber-bg);color:var(--amber)}
+
+/* WhatsApp modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-box{background:var(--card);border-radius:14px;padding:28px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal-box h3{font-size:18px;margin-bottom:10px}
+.wa-progress{font-size:13px;font-weight:700;margin:8px 0 4px}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+
+/* email modal */
+.email-modal-body{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:300px;overflow-y:auto;margin:12px 0;font-family:monospace}
+.modal-email-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+
+/* empty state */
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-state p{max-width:320px;margin:0 auto;line-height:1.5}
+
+/* toast */
+.toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ── Database tab ────────────────────────────────── */
+.db-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:4px}
+.db-table{width:100%;border-collapse:collapse;font-size:13px}
+.db-table th{background:var(--bg);padding:9px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap}
+.db-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.db-table tr:last-child td{border-bottom:none}
+.db-table tr:hover td{background:var(--bg)}
+.db-name{font-weight:600}
+.db-email,.db-phone,.db-file{font-size:12px;color:var(--muted)}
+.db-email a{color:var(--blue-lt);text-decoration:none}
+.db-email a:hover{text-decoration:underline}
+.db-date{font-size:11px;color:var(--muted);white-space:nowrap}
+.db-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 6px;border-radius:4px}
+.db-del:hover{color:var(--red);background:var(--red-bg)}
+
+@media(max-width:680px){
+  .db-table th:nth-child(n+4),.db-table td:nth-child(n+4){display:none}
+}
+  .header-inner{padding:10px 16px}
+  .tab-btn{padding:6px 10px;font-size:12px}
+  .logo-sub{display:none}
+  .main{padding:16px 12px 48px}
+  .card{padding:18px}
+  .results-grid{grid-template-columns:1fr}
+  .email-list-header,.email-row{grid-template-columns:1fr 1fr}
+  .email-list-header>:nth-child(n+3),.email-row>:nth-child(n+3){display:none}
+  .bulk-btns{width:100%}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">🔧</span>
+      <div>
+        <span class="logo-title">Automate HR</span>
+        <span class="logo-sub">OneStop KWC — Handyman Hiring</span>
+      </div>
+    </div>
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="upload" onclick="switchTab('upload')">📤 Upload &amp; Screen</button>
+      <button class="tab-btn" data-tab="shortlisted" onclick="switchTab('shortlisted')">✅ Shortlisted <span class="badge" id="badge-sl">0</span></button>
+      <button class="tab-btn" data-tab="email" onclick="switchTab('email')">📧 Email Blast <span class="badge" id="badge-em">0</span></button>
+      <button class="tab-btn" data-tab="db" onclick="switchTab('db')">📋 Database <span class="badge" id="badge-db">0</span></button>
+    </nav>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- TAB 1 -->
+  <section class="tab-panel active" id="panel-upload">
+    <div class="card upload-card">
+      <h2>Upload Resumes</h2>
+      <p class="text-muted">Upload PDF or DOCX resumes. Each is automatically screened against all five hiring criteria.</p>
+      <div class="dropzone" id="dropzone">
+        <div>
+          <div class="dz-icon">📄</div>
+          <p class="dz-title">Drag &amp; drop resumes here</p>
+          <p class="dz-sub">PDF, DOC, DOCX supported — up to 50 files</p>
+          <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" multiple hidden>
+          <button class="btn btn-outline" onclick="event.stopPropagation();document.getElementById('file-input').click()">Browse Files</button>
+        </div>
+      </div>
+      <div id="staged-list" class="staged-list" style="display:none">
+        <div class="staged-header">
+          <span id="staged-count">0 file(s) ready</span>
+          <button class="link-btn" onclick="clearFiles()">Clear all</button>
+        </div>
+        <ul class="staged-files" id="staged-files"></ul>
+      </div>
+      <div class="criteria-box">
+        <p class="criteria-label">Screening criteria applied to every resume:</p>
+        <div class="criteria-chips">
+          <span class="chip">📍 KWC area or ≤30 min drive</span>
+          <span class="chip">🍁 Canada only</span>
+          <span class="chip">🔨 3+ years handyman experience</span>
+          <span class="chip">🗣️ English speaking (preferred)</span>
+          <span class="chip">🔍 No criminal background</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-lg" id="screen-btn" disabled onclick="screenResumes()">🔍 &nbsp;Screen Resumes</button>
+    </div>
+
+    <div id="progress-wrap" class="progress-wrap" style="display:none">
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <p id="progress-label">Processing…</p>
+    </div>
+
+    <div id="results-wrap" style="display:none">
+      <div class="results-bar">
+        <div id="results-stats" class="results-stats"></div>
+        <div class="filter-group">
+          <button class="pill active" data-filter="all"          onclick="applyFilter('all',this)">All</button>
+          <button class="pill"         data-filter="shortlisted" onclick="applyFilter('shortlisted',this)">✅ Shortlisted</button>
+          <button class="pill"         data-filter="review"      onclick="applyFilter('review',this)">⚠️ Review</button>
+          <button class="pill"         data-filter="rejected"    onclick="applyFilter('rejected',this)">❌ Rejected</button>
+        </div>
+        <div class="bulk-btns">
+          <button class="btn btn-wa"      onclick="whatsappAll()">📱 WhatsApp Shortlisted</button>
+          <button class="btn btn-primary" onclick="switchTab('email')">📧 Email Blast</button>
+        </div>
+      </div>
+      <div id="results-grid" class="results-grid"></div>
+    </div>
+  </section>
+
+  <!-- TAB 2 -->
+  <section class="tab-panel" id="panel-shortlisted">
+    <div id="sl-inner">
+      <div class="empty-state"><div class="empty-icon">📋</div><p>No resumes screened yet.<br>Use <strong>Upload &amp; Screen</strong> to get started.</p></div>
+    </div>
+  </section>
+
+  <!-- TAB 3 -->
+  <section class="tab-panel" id="panel-email">
+    <div class="card">
+      <div class="email-top">
+        <div>
+          <h2>Email Blast</h2>
+          <p class="text-muted" id="email-subtitle">Screen resumes first to see shortlisted candidates.</p>
+        </div>
+        <button class="btn btn-primary btn-lg" id="send-all-btn" disabled onclick="openAllEmails()">📧 Open All Email Clients</button>
+      </div>
+      <div class="info-banner">
+        📬 <strong>How email works:</strong> Click "Send Email" on any candidate to open your email client (Outlook, Gmail, Mail) with the template pre-filled. The email will be sent from whichever account you have open. To send from <strong>admin@onestopkwc.ca</strong>, make sure that account is open in your email client.
+      </div>
+
+      <!-- Template preview -->
+      <div class="ep-wrap">
+        <div class="ep-label">Email Template Preview</div>
+        <div class="ep-meta">
+          <span>From: <strong>admin@onestopkwc.ca</strong></span>
+          <span>Subject: <strong>Next Steps – Handyman / Handyperson at OneStop KWC</strong></span>
+        </div>
+        <div class="ep-body" id="ep-body-preview"></div>
+      </div>
+
+      <!-- Candidate send list -->
+      <div id="email-list-wrap">
+        <div class="empty-state" style="padding:24px 0"><p class="text-muted">Shortlisted candidates will appear here after screening.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 4: Persistent database -->
+  <section class="tab-panel" id="panel-db">
+    <div class="card">
+      <div class="db-top">
+        <div>
+          <h2>Candidate Database</h2>
+          <p class="text-muted" id="db-subtitle">All screened candidates are saved here permanently.</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline" onclick="exportCSV()">⬇️ Export CSV</button>
+          <button class="btn btn-ghost" onclick="clearDb()">🗑️ Clear All</button>
+        </div>
+      </div>
+      <div class="filter-group" style="margin:12px 0 16px">
+        <button class="pill active" data-dbfilter="all"          onclick="applyDbFilter('all',this)">All</button>
+        <button class="pill"         data-dbfilter="shortlisted" onclick="applyDbFilter('shortlisted',this)">✅ Shortlisted</button>
+        <button class="pill"         data-dbfilter="review"      onclick="applyDbFilter('review',this)">⚠️ Review</button>
+        <button class="pill"         data-dbfilter="rejected"    onclick="applyDbFilter('rejected',this)">❌ Rejected</button>
+      </div>
+      <div id="db-table-wrap">
+        <div class="empty-state" style="padding:40px 0">
+          <div class="empty-icon">📋</div>
+          <p>No candidates saved yet. Screen some resumes and they'll appear here automatically.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- WhatsApp bulk send modal -->
+<div id="wa-modal" class="modal-overlay" style="display:none" onclick="closeWAModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <h3>📱 Send via WhatsApp</h3>
+    <p class="text-muted" id="wa-info"></p>
+    <p class="wa-progress" id="wa-progress"></p>
+    <p style="font-size:12px;color:var(--muted);margin-top:6px">PDF will download automatically + WhatsApp opens. Just attach the PDF in WhatsApp.</p>
+    <div class="modal-actions">
+      <button class="btn btn-wa btn-lg" id="wa-send-btn" onclick="waSendAndNext()">📤 Send &amp; Next →</button>
+      <button class="btn btn-ghost" onclick="closeWAModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Email compose modal -->
+<div id="em-modal" class="modal-overlay" style="display:none" onclick="closeEmailModal()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:560px">
+    <h3>📧 Send Email</h3>
+    <p class="text-muted" id="em-to"></p>
+    <div class="email-modal-body" id="em-body"></div>
+    <div class="modal-email-actions">
+      <button class="btn btn-primary" onclick="emOpenClient()">Open Email Client</button>
+      <button class="btn btn-outline" onclick="emCopyBody()">📋 Copy Email Body</button>
+      <button class="btn btn-ghost" onclick="closeEmailModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── PDF.js worker ────────────────────────────────
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+}
+
+// ── State ────────────────────────────────────────
+const DB_KEY = 'onestop_hr_db';
+const state = {
+  staged: [],
+  candidates: [],
+  filter: 'all',
+  dbFilter: 'all',
+  waQueue: [], waIndex: 0,
+  emCandidate: null,
+  db: [],
+};
+
+function loadDb() {
+  try { state.db = JSON.parse(localStorage.getItem(DB_KEY) || '[]'); } catch(e) { state.db = []; }
+  updateBadges();
+  renderDbTab();
+}
+
+function saveToDb(candidates) {
+  candidates.forEach(c => {
+    const key = (c.email || c.phone || c.filename || '').toLowerCase().trim();
+    const existing = key ? state.db.findIndex(d => {
+      const dk = (d.email || d.phone || d.filename || '').toLowerCase().trim();
+      return dk === key;
+    }) : -1;
+    const entry = { name:c.name, email:c.email, phone:c.phone, filename:c.filename,
+                    status:c.status, criteria:c.criteria, screened: new Date().toISOString() };
+    if (existing >= 0) state.db[existing] = entry;
+    else state.db.push(entry);
+  });
+  try { localStorage.setItem(DB_KEY, JSON.stringify(state.db)); } catch(e) {}
+  updateBadges();
+  renderDbTab();
+}
+
+// ── Tab nav ──────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+  if (name === 'shortlisted') renderSLTab();
+  if (name === 'email') renderEmailTab();
+  if (name === 'db') renderDbTab();
+}
+
+// ── File staging ─────────────────────────────────
+const dz = document.getElementById('dropzone');
+const fi = document.getElementById('file-input');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); addFiles([...e.dataTransfer.files]); });
+dz.addEventListener('click', e => { if (e.target.tagName !== 'BUTTON') fi.click(); });
+fi.addEventListener('change', () => { addFiles([...fi.files]); fi.value = ''; });
+
+function addFiles(files) {
+  const ok = ['.pdf', '.doc', '.docx', '.txt'];
+  files.forEach(f => {
+    const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
+    if (ok.includes(ext) && !state.staged.some(s => s.name === f.name && s.size === f.size))
+      state.staged.push(f);
+  });
+  renderStaged();
+}
+function clearFiles() { state.staged = []; renderStaged(); }
+function removeFile(i) { state.staged.splice(i, 1); renderStaged(); }
+function renderStaged() {
+  const wrap = document.getElementById('staged-list');
+  const list = document.getElementById('staged-files');
+  document.getElementById('screen-btn').disabled = state.staged.length === 0;
+  if (!state.staged.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  document.getElementById('staged-count').textContent = `${state.staged.length} file(s) ready to screen`;
+  list.innerHTML = state.staged.map((f, i) => `<li>
+    <span>${fileIcon(f.name)}</span>
+    <span class="fi-name" title="${esc(f.name)}">${esc(f.name)}</span>
+    <span class="fi-size">${fmtSize(f.size)}</span>
+    <button class="fi-remove" onclick="removeFile(${i})" title="Remove">×</button>
+  </li>`).join('');
+}
+function fileIcon(n) {
+  return n.endsWith('.pdf') ? '📕' : (n.endsWith('.docx') || n.endsWith('.doc')) ? '📘' : '📄';
+}
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+// ── Text extraction (browser-side) ───────────────
+async function readAB(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+async function extractText(file) {
+  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+  try {
+    if (ext === '.pdf') {
+      if (!window.pdfjsLib) throw new Error('PDF.js not loaded');
+      const ab = await readAB(file);
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise;
+      let text = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        text += tc.items.map(it => it.str).join(' ') + '\n';
+      }
+      return text;
+    }
+    if (ext === '.docx' || ext === '.doc') {
+      if (!window.mammoth) throw new Error('mammoth.js not loaded');
+      const ab = await readAB(file);
+      const result = await mammoth.extractRawText({ arrayBuffer: ab });
+      return result.value || '';
+    }
+    if (ext === '.txt') {
+      const ab = await readAB(file);
+      return new TextDecoder('utf-8').decode(ab);
+    }
+    return '';
+  } catch (err) {
+    console.warn('Extraction error for', file.name, err.message);
+    return '';
+  }
+}
+
+// ── Extraction helpers ───────────────────────────
+function extractEmail(t) {
+  const m = t.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+  return m ? m[0].toLowerCase() : null;
+}
+function extractPhone(t) {
+  const m = t.match(/(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+  return m ? m[0].trim() : null;
+}
+function extractName(t) {
+  const lines = t.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+  for (const line of lines.slice(0, 8)) {
+    if (/^(resume|cv|curriculum|objective|summary|contact|email|phone|address|skills|experience|education|profile)/i.test(line)) continue;
+    if (line.includes('@') || line.includes('http') || /\d{5}/.test(line)) continue;
+    if (line.length >= 3 && line.length <= 50 && /^[A-Za-z\s\-'.À-ÖØ-öø-ÿ]+$/.test(line))
+      return line.replace(/\s+/g, ' ');
+  }
+  return 'Unknown Candidate';
+}
+
+// ── KWC area data ────────────────────────────────
+const KWC_CITIES = [
+  'kitchener','waterloo','cambridge','guelph','elmira',
+  'new hamburg','baden','ayr','paris','fergus','elora',
+  'conestogo','st. jacobs','st jacobs','wellesley','linwood',
+  'breslau','hespeler','prestons','galt','doon',
+  'woolwich','north dumfries','wilmot','floradale','hawkesville',
+  'millbank','alma','plattsville','bright','drumbo','new dundee',
+  'roseville','mannheim','heidelberg','st agatha','branchton',
+];
+const KWC_POSTAL = ['n0b','n1h','n1k','n1r','n1s','n1t',
+  'n2a','n2b','n2c','n2e','n2g','n2h','n2j','n2k','n2l','n2m','n2n',
+  'n2p','n2r','n2t','n2v','n2z','n3h'];
+const FOREIGN = [
+  'united states',' usa ',' u.s.a','new york','california','texas','florida',
+  'ohio','michigan','illinois','georgia','india','pakistan','bangladesh',
+  'nigeria','kenya','ghana','united kingdom',' uk ','england','scotland',
+  'australia','new zealand','philippines','mexico','china','korea','japan',
+];
+const PROVINCES = [
+  'ontario','british columbia','alberta','quebec','nova scotia',
+  'new brunswick','manitoba','saskatchewan','prince edward island',
+  'newfoundland','yukon','northwest territories','nunavut',
+];
+const HANDYMAN_KWS = [
+  'handyman','handyperson','handy man','home repair','home maintenance',
+  'home improvement','home renovation','general contractor','general maintenance',
+  'building maintenance','property maintenance','facility maintenance',
+  'carpentry','plumbing','electrical work','drywall','flooring',
+  'painting','roofing','hvac','tile','fixture installation',
+  'appliance repair','renovation','renovations','trades','tradesperson',
+];
+
+// ── Foreign indicator helper (word-boundary aware) ───
+// Uses \b for single words that are substrings of common English words
+// (georgia→georgian, india→indiana, china→china cabinet needs word boundary too)
+function hasForeignIndicator(t) {
+  const tl = t.toLowerCase();
+  // Multi-word phrases: safe substring match
+  const phrases = ['united states','new york','california','texas','florida','ohio','michigan',
+    'illinois','united kingdom','new zealand','philippines','bangladesh','saudi arabia',
+    'south africa','united arab'];
+  if (phrases.some(f => tl.includes(f))) return true;
+  // Single words needing word boundaries to avoid false positives
+  // (georgia→georgian, india→indiana limestone, china→porcelain china handled below)
+  const bounded = ['india','georgia','korea','japan','nigeria','ghana','kenya','pakistan',
+    'england','scotland','australia','mexico','china'];
+  if (bounded.some(f => new RegExp(`\\b${f}\\b`).test(tl))) return true;
+  // Short tokens that are safe without boundaries
+  if (/ usa | u\.s\.a/.test(tl)) return true;
+  return false;
+}
+
+// ── Criteria checks ──────────────────────────────
+function checkLocation(t) {
+  const tl = t.toLowerCase();
+  // 1. KWC city check FIRST — takes absolute priority
+  const city = KWC_CITIES.find(c => tl.includes(c));
+  if (city) {
+    const d = city.split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+    return { pass:true, reason:`Located in ${d} (within KWC area)`, confidence:'high' };
+  }
+  // 2. KWC postal code check
+  const pm = t.match(/\b([A-Za-z]\d[A-Za-z])\s*\d[A-Za-z]\d\b/);
+  if (pm) {
+    const pfx = pm[1].toLowerCase();
+    if (KWC_POSTAL.some(p => pfx === p || pfx.startsWith(p)))
+      return { pass:true, reason:`Postal code ${pm[0].toUpperCase()} is within KWC area`, confidence:'high' };
+    return { pass:false, reason:`Postal code ${pm[0].toUpperCase()} is outside KWC 30-min radius`, confidence:'medium' };
+  }
+  // 3. Only check foreign indicators if no positive KWC signal found
+  if (hasForeignIndicator(t))
+    return { pass:false, reason:'Address appears to be outside Canada', confidence:'high' };
+  if (tl.includes('ontario') || /\bON\b/.test(t) || /, ON/.test(t))
+    return { pass:false, reason:'Ontario detected but not confirmed within KWC area', confidence:'low', uncertain:true };
+  return { pass:false, reason:'Location not found — not in Kitchener/Waterloo/Cambridge area', confidence:'low', uncertain:true };
+}
+
+function checkCanada(t) {
+  const tl = t.toLowerCase();
+  // 1. Canadian positive indicators FIRST
+  if (tl.includes('canada') || PROVINCES.some(p => tl.includes(p)))
+    return { pass:true, reason:'Canadian location confirmed', confidence:'high' };
+  // 2. Canadian postal code format
+  if (/\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/.test(t.toUpperCase()))
+    return { pass:true, reason:'Canadian postal code format detected', confidence:'medium' };
+  // 3. "ON" province abbreviation
+  if (/\bON\b/.test(t) || /, ON/.test(t))
+    return { pass:true, reason:'Ontario (ON) confirmed — Canadian location', confidence:'medium' };
+  // 4. Only check foreign indicators if no Canadian signal found
+  if (hasForeignIndicator(t))
+    return { pass:false, reason:'Non-Canadian location detected', confidence:'high' };
+  return { pass:false, reason:'Unable to confirm Canadian location', confidence:'low', uncertain:true };
+}
+
+function checkExperience(t) {
+  const tl = t.toLowerCase();
+  const hasHandy = HANDYMAN_KWS.some(k => tl.includes(k));
+  if (!hasHandy)
+    return { pass:false, reason:'No handyman/maintenance experience keywords found', confidence:'medium' };
+  const patterns = [
+    /(\d+)\+?\s*years?\s+(?:of\s+)?(?:experience|exp|work)/gi,
+    /(?:over|more than|nearly|about|around)\s+(\d+)\s*years?/gi,
+    /experience[:\-\s]+(\d+)\+?\s*years?/gi,
+    /(\d+)\+?\s*(?:yrs?|years?)\s+(?:experience|exp|in|as|of)/gi,
+  ];
+  let maxY = 0;
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(t)) !== null) {
+      const y = parseInt(m[1]);
+      if (y >= 1 && y < 60 && y > maxY) maxY = y;
+    }
+  }
+  if (maxY >= 3) return { pass:true, reason:`${maxY}+ years of relevant experience stated`, confidence:'high' };
+  if (maxY > 0)  return { pass:false, reason:`Only ${maxY} year(s) stated — minimum 3 required`, confidence:'high' };
+  // Date ranges
+  const now = new Date().getFullYear();
+  let total = 0;
+  const dr = /(\d{4})\s*[-–—]\s*(present|current|now|(\d{4}))/gi;
+  let dm;
+  while ((dm = dr.exec(t)) !== null) {
+    const s = parseInt(dm[1]);
+    const raw = dm[2].toLowerCase();
+    const e = (raw==='present'||raw==='current'||raw==='now') ? now : parseInt(dm[3]||dm[2]);
+    if (s>=1990 && s<=now && e>=s && e<=now+1) total += e - s;
+  }
+  if (total >= 3) return { pass:true, reason:`~${total} years of work history with handyman keywords`, confidence:'medium' };
+  return { pass:false, reason:'Handyman keywords found but 3+ years not clearly confirmed — manual review', confidence:'low', uncertain:true };
+}
+
+function checkLanguage(t) {
+  const tl = t.toLowerCase();
+  if (['french only','spanish only','mandarin only','hindi only'].some(n => tl.includes(n)))
+    return { pass:false, reason:'Non-English speaker indicated', confidence:'medium' };
+  if (/\benglish\b/i.test(t) || tl.includes('anglophone'))
+    return { pass:true, reason:'English proficiency stated', confidence:'high' };
+  if (t.split(/\s+/).filter(w=>w.length>2).length > 30)
+    return { pass:true, reason:'Resume written in English (preferred)', confidence:'medium' };
+  return { pass:true, reason:'Language not specified — verify in interview', confidence:'low' };
+}
+
+function checkCriminal(t) {
+  const tl = t.toLowerCase();
+  const red = ['criminal record','criminal history','criminal conviction','convicted of','felony','misdemeanor','prison time','jail sentence','incarcerated','probation','parole'];
+  const clean = ['no criminal','clean background','clear background','background check passed','criminal background clear'];
+  if (red.some(r => tl.includes(r))) return { pass:false, reason:'Criminal history mentioned in resume', confidence:'high' };
+  if (clean.some(c => tl.includes(c))) return { pass:true, reason:'Clean background confirmed in resume', confidence:'high' };
+  return { pass:true, reason:'No criminal history detected (background check required at onboarding)', confidence:'medium' };
+}
+
+function analyzeResume(text, filename) {
+  if (!text || text.trim().length < 30) {
+    const blank = {pass:false,reason:'Could not extract text — manual review required',confidence:'low',uncertain:true};
+    return { filename, name:filename.replace(/\.[^/.]+$/,''), email:null, phone:null,
+      criteria:{location:blank,canada:blank,experience:blank,language:{pass:true,reason:'Unable to assess',confidence:'low'},criminal:{pass:true,reason:'Unable to assess',confidence:'low'}},
+      status:'review', shortlisted:false };
+  }
+  const criteria = {
+    location: checkLocation(text),
+    canada:   checkCanada(text),
+    experience: checkExperience(text),
+    language:   checkLanguage(text),
+    criminal:   checkCriminal(text),
+  };
+  const hardFails = Object.values(criteria).filter(c => !c.pass && c.confidence !== 'low');
+  const uncertain  = Object.values(criteria).some(c => c.uncertain || (!c.pass && c.confidence === 'low'));
+  const status = hardFails.length > 0 ? 'rejected' : uncertain ? 'review' : 'shortlisted';
+  return { filename, name:extractName(text), email:extractEmail(text), phone:extractPhone(text),
+           criteria, status, shortlisted: status === 'shortlisted' };
+}
+
+// ── Screening ────────────────────────────────────
+async function screenResumes() {
+  if (!state.staged.length) return;
+  document.getElementById('screen-btn').disabled = true;
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('results-wrap').style.display = 'none';
+  const fill = document.getElementById('progress-fill');
+  const lbl  = document.getElementById('progress-label');
+  state.candidates = [];
+  const total = state.staged.length;
+
+  for (let i = 0; i < total; i++) {
+    lbl.textContent = `Screening ${i+1} of ${total}: ${state.staged[i].name}…`;
+    fill.style.width = `${Math.round((i/total)*100)}%`;
+    const text = await extractText(state.staged[i]);
+    const result = analyzeResume(text, state.staged[i].name);
+    result._file = state.staged[i]; // keep File reference for one-click download
+    state.candidates.push(result);
+  }
+
+  fill.style.width = '100%';
+  lbl.textContent = `Done! Screened ${total} resume(s).`;
+  setTimeout(() => document.getElementById('progress-wrap').style.display = 'none', 800);
+  state.filter = 'all';
+  renderResultsGrid();
+  saveToDb(state.candidates);
+  updateBadges();
+  document.getElementById('results-wrap').style.display = 'block';
+  document.getElementById('screen-btn').disabled = false;
+}
+
+// ── Render ───────────────────────────────────────
+const CRIT_META = {
+  location:   {icon:'📍',label:'Location'},
+  canada:     {icon:'🍁',label:'Canada'},
+  experience: {icon:'🔨',label:'Experience'},
+  language:   {icon:'🗣️',label:'Language'},
+  criminal:   {icon:'🔍',label:'Background'},
+};
+
+function renderCard(c, idx) {
+  const slbl = c.status==='shortlisted'?'✅ Shortlisted':c.status==='review'?'⚠️ Needs Review':'❌ Rejected';
+  const crits = Object.entries(CRIT_META).map(([k,m]) => {
+    const cr = (c.criteria||{})[k]; if (!cr) return '';
+    const cls = cr.pass?'crit-pass':cr.uncertain?'crit-warn':'crit-fail';
+    const tick = cr.pass?'✅':cr.uncertain?'⚠️':'❌';
+    return `<div class="crit-row"><span class="crit-icon">${m.icon}</span><div class="crit-body"><span class="crit-label ${cls}">${tick} ${m.label}</span><span class="crit-reason">${esc(cr.reason||'')}</span></div></div>`;
+  }).join('');
+  const contact = [
+    c.email?`<span>📧 <span class="contact-val">${esc(c.email)}</span></span>`:'',
+    c.phone?`<span>📱 <span class="contact-val">${esc(c.phone)}</span></span>`:'',
+  ].filter(Boolean).join('');
+  const acts = c.status!=='rejected' ? `
+    <button class="btn btn-wa" onclick="whatsappOne(${idx})">📱 WhatsApp</button>
+    ${c.email?`<button class="btn btn-primary" onclick="openEmailModal(${idx})">📧 Email</button>`:''}
+  ` : '';
+  return `<div class="cand-card status-${c.status}">
+    <div class="cand-head"><span class="status-badge badge-${c.status}">${slbl}</span><span class="cand-filename" title="${esc(c.filename)}">${esc(c.filename)}</span></div>
+    <div class="cand-info"><div class="cand-name">${esc(c.name||'Unknown')}</div><div class="cand-contact">${contact||'<span class="no-contact">No contact info found</span>'}</div></div>
+    <div class="cand-criteria">${crits}</div>
+    ${acts?`<div class="cand-actions">${acts}</div>`:''}
+  </div>`;
+}
+
+function renderResultsGrid() {
+  const grid = document.getElementById('results-grid');
+  const stats = document.getElementById('results-stats');
+  const total = state.candidates.length;
+  const sl = state.candidates.filter(c=>c.status==='shortlisted').length;
+  const rv = state.candidates.filter(c=>c.status==='review').length;
+  const rj = state.candidates.filter(c=>c.status==='rejected').length;
+  stats.innerHTML = `<strong>${total}</strong> screened — <span class="stat-green">✅ ${sl} shortlisted</span>, <span class="stat-amber">⚠️ ${rv} for review</span>, <span class="stat-red">❌ ${rj} rejected</span>`;
+  const vis = state.filter==='all' ? state.candidates : state.candidates.filter(c=>c.status===state.filter);
+  grid.innerHTML = vis.length
+    ? vis.map(c => renderCard(c, state.candidates.indexOf(c))).join('')
+    : `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><p>No candidates match this filter.</p></div>`;
+}
+
+function applyFilter(f, btn) {
+  state.filter = f;
+  document.querySelectorAll('.pill').forEach(p=>p.classList.toggle('active', p.dataset.filter===f));
+  renderResultsGrid();
+}
+
+function renderSLTab() {
+  const inner = document.getElementById('sl-inner');
+  const sl = state.candidates.filter(c=>c.status!=='rejected');
+  if (!sl.length) {
+    inner.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>${state.candidates.length===0?'No resumes screened yet.<br>Use <strong>Upload &amp; Screen</strong> to get started.':'No shortlisted or review candidates found.'}</p></div>`;
+    return;
+  }
+  inner.innerHTML = `
+    <div class="sl-header">
+      <h2>${sl.filter(c=>c.status==='shortlisted').length} Shortlisted • ${sl.filter(c=>c.status==='review').length} for Review</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-wa" onclick="whatsappAll()">📱 WhatsApp All</button>
+        <button class="btn btn-primary" onclick="switchTab('email')">📧 Email All</button>
+      </div>
+    </div>
+    <div class="results-grid">${sl.map(c=>renderCard(c,state.candidates.indexOf(c))).join('')}</div>`;
+}
+
+function renderEmailTab() {
+  const sl = state.candidates.filter(c=>c.status!=='rejected');
+  document.getElementById('badge-em').textContent = state.candidates.filter(c=>c.status==='shortlisted').length;
+  document.getElementById('email-subtitle').textContent = sl.length
+    ? `${sl.length} candidate(s) ready for email outreach.`
+    : 'Screen resumes first to see shortlisted candidates.';
+  document.getElementById('send-all-btn').disabled = sl.length === 0;
+
+  // Show template preview with placeholder name
+  document.getElementById('ep-body-preview').textContent = buildEmailText('[Candidate Name]');
+
+  const wrap = document.getElementById('email-list-wrap');
+  if (!sl.length) {
+    wrap.innerHTML = `<div class="empty-state" style="padding:24px 0"><p class="text-muted">Shortlisted candidates will appear here after screening.</p></div>`;
+    return;
+  }
+  const rows = sl.map(c => {
+    const idx = state.candidates.indexOf(c);
+    return `<div class="email-row">
+      <span class="email-name">${esc(c.name||'Unknown')}</span>
+      <span class="email-addr">${c.email?esc(c.email):'<em style="color:var(--muted)">—</em>'}</span>
+      <span>${c.email?'<span class="es-badge es-pending">⏳ Ready</span>':'<span class="es-badge es-no-email">⚠️ No email</span>'}</span>
+      <span>${c.email?`<button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="openEmailModal(${idx})">📧 Send</button>`:''}</span>
+    </div>`;
+  }).join('');
+  wrap.innerHTML = `
+    <div class="email-list-header"><span>Name</span><span>Email</span><span>Status</span><span>Action</span></div>
+    ${rows}`;
+}
+
+function updateBadges() {
+  const sl = state.candidates.filter(c=>c.status==='shortlisted').length;
+  document.getElementById('badge-sl').textContent = sl;
+  document.getElementById('badge-em').textContent = sl;
+  document.getElementById('badge-db').textContent = state.db.length;
+}
+
+// ── Email template ────────────────────────────────
+const DEADLINE = 'Monday, August 24, 2026';
+
+function buildEmailText(firstName) {
+  return `Hi ${firstName},
+
+Thank you for applying for the Handyman / Handyperson – Residential Home Services with OneStop KWC. We'd like to move forward with the next step in bringing you on board.
+
+Before we proceed, please confirm that you have the following:
+  * Valid contractor insurance
+  * Your own vehicle / car
+  * Your own tools required for the job
+  * Availability — please let us know what your availability looks like over the next week and/or month, including available days and approximate hours.
+
+Note: We also noted that you currently do not have contractor insurance. Insurance will be required as you move forward with providing services through OneStop KWC, but you do not need to have the insurance in place at this stage. For now, you can proceed with reviewing and signing the agreement and completing the intake form.
+
+Please find attached the following three documents:
+  1. Independent Contractor Services Agreement – The core agreement covering terms of service, compensation, and expectations.
+  2. Contractor Platform Standards Guide – An overview of how our platform works, including scheduling, communication, and service standards.
+  3. Contractor Intake Form – Please complete and return this form with your details so we can get you set up in our system.
+
+In addition, please provide the following documents / information along with your completed paperwork:
+  * Photo ID – A valid government-issued photo ID.
+  * Proof of Work Eligibility – A valid work permit, Permanent Resident (PR) document/card, or Canadian citizenship document confirming your eligibility to work in Canada.
+  * College Certificate – A copy of your relevant college certificate or diploma.
+  * Previous Employer Reference – Contact information for a previous employer or supervisor who can provide a professional reference, including their name, company, position, and phone number / email address.
+
+Please make sure to sign the Independent Contractor Services Agreement, complete the Contractor Intake Form, and send all requested documents and information back to us by ${DEADLINE}.
+
+Please reply with your insurance status, vehicle availability, tools, and availability for the coming week/month so we can determine the next steps.
+
+If you have any questions about the documents or anything else, please feel free to reach out.
+
+We look forward to working with you.
+
+Best regards,
+OneStop KWC
+Human Resource Coordinator
+t: +1 (780) 504-4395`;
+}
+
+// ── Email modal ───────────────────────────────────
+function openEmailModal(idx) {
+  const c = state.candidates[idx];
+  if (!c || !c.email) return;
+  state.emCandidate = c;
+  const firstName = (c.name||'Applicant').split(/\s+/)[0];
+  document.getElementById('em-to').textContent = `To: ${c.name} <${c.email}>`;
+  document.getElementById('em-body').textContent = buildEmailText(firstName);
+  document.getElementById('em-modal').style.display = 'flex';
+}
+function closeEmailModal() {
+  document.getElementById('em-modal').style.display = 'none';
+  state.emCandidate = null;
+}
+function emOpenClient() {
+  const c = state.emCandidate;
+  if (!c || !c.email) return;
+  const firstName = (c.name||'Applicant').split(/\s+/)[0];
+  const sub = encodeURIComponent('Next Steps – Handyman / Handyperson at OneStop KWC');
+  const body = encodeURIComponent(buildEmailText(firstName));
+  window.open(`mailto:${c.email}?subject=${sub}&body=${body}`, '_blank');
+  closeEmailModal();
+  showToast(`Email client opened for ${c.name}`);
+}
+function emCopyBody() {
+  const c = state.emCandidate;
+  if (!c) return;
+  const firstName = (c.name||'Applicant').split(/\s+/)[0];
+  navigator.clipboard.writeText(buildEmailText(firstName))
+    .then(() => showToast('Email body copied to clipboard!'))
+    .catch(() => showToast('Copy failed — please select and copy manually'));
+}
+function openAllEmails() {
+  const sl = state.candidates.filter(c=>c.status!=='rejected' && c.email);
+  if (!sl.length) { showToast('No candidates with email addresses found.'); return; }
+  sl.forEach((c, i) => {
+    const firstName = (c.name||'Applicant').split(/\s+/)[0];
+    const sub  = encodeURIComponent('Next Steps – Handyman / Handyperson at OneStop KWC');
+    const body = encodeURIComponent(buildEmailText(firstName));
+    setTimeout(() => window.open(`mailto:${c.email}?subject=${sub}&body=${body}`, `_em_${i}`), i * 400);
+  });
+}
+
+// ── WhatsApp ──────────────────────────────────────
+const WA = '15197229057';
+
+// Download the original resume file to the user's device
+function downloadResume(file) {
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function buildWAMsg(c) {
+  const crit = c.criteria || {};
+  const icons  = {location:'📍',canada:'🍁',experience:'🔨',language:'🗣',criminal:'🔍'};
+  const labels = {location:'Location',canada:'Canada',experience:'Experience',language:'Language',criminal:'Background'};
+  let lines = [
+    '🔧 *OneStop KWC — Shortlisted Candidate*\n',
+    `*Name:* ${c.name||'Unknown'}`,
+    c.email ? `*Email:* ${c.email}` : '',
+    c.phone ? `*Phone:* ${c.phone}` : '',
+    `*Resume file:* ${c.filename}`,
+    `*Status:* ${c.status==='shortlisted'?'✅ Shortlisted':'⚠️ Needs Review'}`,
+    '',
+    '*Screening Results:*',
+  ];
+  Object.entries(crit).forEach(([k,v]) => {
+    if (!v) return;
+    const tick = v.pass ? '✅' : v.uncertain ? '⚠️' : '❌';
+    lines.push(`${icons[k]||''} ${tick} ${labels[k]||k}: ${v.reason||''}`);
+  });
+  lines.push('', '📎 _Resume PDF downloaded to your device — attach it below_');
+  lines.push('_Screened via Automate HR — OneStop KWC_');
+  return lines.filter(l => l !== null).join('\n');
+}
+
+// Single candidate: one click → download PDF + open WhatsApp
+function whatsappOne(idx) {
+  const c = state.candidates[idx];
+  if (!c) return;
+  downloadResume(c._file);
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(buildWAMsg(c))}`, '_blank');
+  showToast(`📥 PDF downloading + WhatsApp opening for ${c.name||c.filename}`);
+}
+
+// Bulk: step-through modal — each step sends PDF + WhatsApp in one click
+function whatsappAll() {
+  const q = state.candidates.map((c,i)=>({c,i})).filter(({c})=>c.status!=='rejected');
+  if (!q.length) { showToast('No shortlisted candidates to send.'); return; }
+  state.waQueue = q; state.waIndex = 0;
+  showWAModal();
+}
+function showWAModal() {
+  if (state.waIndex >= state.waQueue.length) { closeWAModal(); return; }
+  const {c} = state.waQueue[state.waIndex];
+  const total = state.waQueue.length;
+  const isLast = state.waIndex + 1 >= total;
+  document.getElementById('wa-info').innerHTML =
+    `<strong>${esc(c.name||c.filename)}</strong><br><span style="font-size:12px;color:var(--muted)">${c.email||'no email'} &mdash; ${c.filename}</span>`;
+  document.getElementById('wa-progress').textContent = `Candidate ${state.waIndex+1} of ${total}`;
+  document.getElementById('wa-send-btn').textContent = isLast ? '📤 Send & Done' : '📤 Send & Next →';
+  document.getElementById('wa-modal').style.display = 'flex';
+}
+function waSendAndNext() {
+  const {c} = state.waQueue[state.waIndex] || {};
+  if (!c) return;
+  // Download PDF + open WhatsApp in one action
+  downloadResume(c._file);
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(buildWAMsg(c))}`, '_blank');
+  state.waIndex++;
+  if (state.waIndex >= state.waQueue.length) { closeWAModal(); showToast('All candidates sent via WhatsApp!'); }
+  else showWAModal();
+}
+function closeWAModal() { document.getElementById('wa-modal').style.display='none'; }
+
+// ── Database tab ─────────────────────────────────
+function renderDbTab() {
+  const wrap = document.getElementById('db-table-wrap');
+  const filtered = state.dbFilter === 'all' ? state.db : state.db.filter(d => d.status === state.dbFilter);
+  document.getElementById('db-subtitle').textContent = `${state.db.length} candidate(s) saved. ${state.db.filter(d=>d.status==='shortlisted').length} shortlisted.`;
+  if (!state.db.length) {
+    wrap.innerHTML = `<div class="empty-state" style="padding:40px 0"><div class="empty-icon">📋</div><p>No candidates saved yet. Screen some resumes and they'll appear here automatically.</p></div>`;
+    return;
+  }
+  if (!filtered.length) {
+    wrap.innerHTML = `<div class="empty-state" style="padding:24px 0"><p class="text-muted">No candidates match this filter.</p></div>`;
+    return;
+  }
+  const rows = filtered.map((d, i) => {
+    const realIdx = state.db.indexOf(d);
+    const badge = d.status==='shortlisted'
+      ? '<span class="status-badge badge-shortlisted" style="font-size:10px">✅ Shortlisted</span>'
+      : d.status==='review'
+      ? '<span class="status-badge badge-review" style="font-size:10px">⚠️ Review</span>'
+      : '<span class="status-badge badge-rejected" style="font-size:10px">❌ Rejected</span>';
+    const dt = d.screened ? new Date(d.screened).toLocaleDateString('en-CA',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    return `<tr>
+      <td><span class="db-name">${esc(d.name||'Unknown')}</span></td>
+      <td class="db-email">${d.email?`<a href="mailto:${esc(d.email)}">${esc(d.email)}</a>`:'<em style="color:var(--muted)">—</em>'}</td>
+      <td class="db-phone">${d.phone?esc(d.phone):'—'}</td>
+      <td>${badge}</td>
+      <td class="db-date">${dt}</td>
+      <td class="db-file">${esc(d.filename||'')}</td>
+      <td><button class="db-del" onclick="deleteDbEntry(${realIdx})" title="Remove">🗑</button></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<div style="overflow-x:auto"><table class="db-table">
+    <thead><tr>
+      <th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Date</th><th>File</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function applyDbFilter(f, btn) {
+  state.dbFilter = f;
+  document.querySelectorAll('[data-dbfilter]').forEach(p => p.classList.toggle('active', p.dataset.dbfilter === f));
+  renderDbTab();
+}
+
+function deleteDbEntry(idx) {
+  state.db.splice(idx, 1);
+  try { localStorage.setItem(DB_KEY, JSON.stringify(state.db)); } catch(e) {}
+  updateBadges();
+  renderDbTab();
+}
+
+function clearDb() {
+  if (!confirm(`Delete all ${state.db.length} candidate(s) from the database? This cannot be undone.`)) return;
+  state.db = [];
+  try { localStorage.removeItem(DB_KEY); } catch(e) {}
+  updateBadges();
+  renderDbTab();
+  showToast('Database cleared.');
+}
+
+function exportCSV() {
+  if (!state.db.length) { showToast('No data to export.'); return; }
+  const headers = ['Name','Email','Phone','Status','Screened','File','Location','Canada','Experience','Language','Background'];
+  const rows = state.db.map(d => {
+    const cr = d.criteria || {};
+    return [
+      d.name||'', d.email||'', d.phone||'', d.status||'',
+      d.screened ? new Date(d.screened).toLocaleDateString('en-CA') : '',
+      d.filename||'',
+      cr.location  ? (cr.location.pass?'Pass':'Fail')+': '+cr.location.reason   : '',
+      cr.canada    ? (cr.canada.pass?'Pass':'Fail')+': '+cr.canada.reason       : '',
+      cr.experience? (cr.experience.pass?'Pass':'Fail')+': '+cr.experience.reason: '',
+      cr.language  ? (cr.language.pass?'Pass':'Fail')+': '+cr.language.reason   : '',
+      cr.criminal  ? (cr.criminal.pass?'Pass':'Fail')+': '+cr.criminal.reason   : '',
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`);
+  });
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `onestop-hr-candidates-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  showToast('CSV exported!');
+}
+
+// ── Init ──────────────────────────────────────────
+loadDb();
+
+// ── Toast ──────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── Utils ──────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

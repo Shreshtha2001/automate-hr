@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OneStop KWC Hiring</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="OneStop KWC Hiring">
+  <meta name="theme-color" content="#1e40af">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────── -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🔧</span>
+        <div class="logo-text">
+          <span class="logo-title">OneStop KWC Hiring</span>
+          <span class="logo-sub">Handyman — Residential Home Services</span>
+        </div>
+      </div>
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="upload" onclick="switchTab('upload')">
+          📤 Upload &amp; Screen
+        </button>
+        <button class="tab-btn" data-tab="screened" onclick="switchTab('screened')">
+          🔍 Screened <span class="badge" id="badge-screened">0</span>
+        </button>
+        <button class="tab-btn" data-tab="shortlisted" onclick="switchTab('shortlisted')">
+          ⭐ Shortlisted <span class="badge" id="badge-shortlisted">0</span>
+        </button>
+        <button class="tab-btn" data-tab="email" onclick="switchTab('email')">
+          📧 Email Blast <span class="badge" id="badge-email">0</span>
+        </button>
+        <button class="tab-btn" data-tab="docs" onclick="switchTab('docs')">
+          📁 Docs Received <span class="badge" id="badge-docs">0</span>
+        </button>
+        <button class="tab-btn" data-tab="indeed" onclick="switchTab('indeed')">
+          🔗 Indeed <span class="badge badge-indeed" id="badge-indeed">0</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── Main ────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- TAB 1: Upload & Screen -->
+    <section class="tab-panel active" id="panel-upload">
+      <div class="card upload-card">
+        <h2>Upload Resumes</h2>
+        <p class="text-muted">Upload PDF or DOCX resumes. Each file is automatically screened against all five hiring criteria.</p>
+
+        <div class="dropzone" id="dropzone">
+          <div class="dz-inner">
+            <div class="dz-icon">📄</div>
+            <p class="dz-title">Drag &amp; drop resumes here</p>
+            <p class="dz-sub">PDF, DOC, DOCX supported &mdash; up to 50 files</p>
+            <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" multiple hidden>
+            <button class="btn btn-outline" onclick="document.getElementById('file-input').click()">Browse Files</button>
+          </div>
+        </div>
+
+        <div id="staged-list" class="staged-list" style="display:none">
+          <div class="staged-header">
+            <span id="staged-count">0 file(s) ready</span>
+            <button class="link-btn" onclick="clearFiles()">Clear all</button>
+          </div>
+          <ul id="staged-files"></ul>
+        </div>
+
+        <button class="btn btn-primary btn-lg" id="screen-btn" disabled onclick="screenResumes()">
+          🔍 &nbsp;Screen Resumes
+        </button>
+      </div>
+
+      <div id="progress-wrap" class="progress-wrap" style="display:none">
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
+        <p id="progress-label">Processing…</p>
+      </div>
+    </section>
+
+    <!-- TAB 2: Screened Resumes -->
+    <section class="tab-panel" id="panel-screened">
+      <div class="results-bar">
+        <div class="bulk-btns">
+          <button class="btn btn-success" onclick="exportScreenedToExcel()">📊 Export Excel</button>
+          <button class="btn btn-ghost" onclick="clearAllData()">🗑 Clear Data</button>
+        </div>
+      </div>
+      <div id="screened-inner">
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <p>No resumes screened yet.<br>Use <strong>Upload &amp; Screen</strong> to get started.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: Shortlisted -->
+    <section class="tab-panel" id="panel-shortlisted">
+      <div id="shortlisted-inner">
+        <div class="empty-state">
+          <div class="empty-icon">⭐</div>
+          <p>No candidates shortlisted yet.<br>Go to <strong>Screened</strong> tab and click ⭐ Shortlist.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Email Blast -->
+    <section class="tab-panel" id="panel-email">
+      <div class="card email-card">
+        <div class="email-top">
+          <div>
+            <h2>Email Blast</h2>
+            <p class="text-muted" id="email-subtitle">Shortlist candidates first to send emails.</p>
+          </div>
+          <button class="btn btn-outline" id="send-all-btn" disabled onclick="sendAllEmails()">
+            📧 Send to All Shortlisted
+          </button>
+        </div>
+
+        <!-- Candidate selector -->
+        <div class="send-panel">
+          <div class="send-panel-inner">
+            <div class="send-field">
+              <label class="send-label">Select Candidate</label>
+              <select id="email-candidate-select" onchange="onCandidateSelect(this.value)" class="send-select">
+                <option value="">— Select a shortlisted candidate —</option>
+              </select>
+            </div>
+            <div class="send-field" id="send-email-field" style="display:none">
+              <label class="send-label">Email Address</label>
+              <div class="send-email-row">
+                <input type="email" id="email-to-input" placeholder="email@example.com" class="send-input">
+                <button class="btn btn-primary" id="send-one-btn" onclick="sendSelectedCandidate()">
+                  📧 Send + Docs
+                </button>
+              </div>
+            </div>
+          </div>
+          <div id="send-status-line" class="send-status-line" style="display:none"></div>
+        </div>
+
+        <div class="info-banner">
+          📎 Sends personalized ICSA, Platform Guide &amp; Intake Form as PDF attachments.
+          <a class="link-btn" onclick="toggleSmtpHelp()" style="cursor:pointer">Config ›</a>
+        </div>
+        <div id="smtp-help" class="smtp-help" style="display:none">
+          <p>Edit the <code>.env</code> file in the <code>automate-hr</code> folder to change SMTP settings.</p>
+          <pre>SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=admin@onestopkwc.ca
+SMTP_PASS=your-app-password
+SMTP_FROM=admin@onestopkwc.ca</pre>
+        </div>
+
+        <div class="ep-wrap">
+          <div class="ep-label" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Email Template Preview</span>
+            <button class="btn btn-outline" style="font-size:12px;padding:4px 12px" onclick="openEditTemplate()">✏️ Edit Template</button>
+          </div>
+          <div class="ep-meta">
+            <span>From: <strong>admin@onestopkwc.ca</strong></span>
+            <span id="ep-to-line">To: <strong id="ep-to-name">—</strong></span>
+          </div>
+          <iframe id="email-preview-frame" class="ep-frame" src="/api/email-preview" title="Email template preview"></iframe>
+        </div>
+
+        <div id="email-candidate-list" class="email-list">
+          <div class="empty-state" style="margin:0;padding:24px 0">
+            <p class="text-muted">Shortlisted candidates will appear here.</p>
+          </div>
+        </div>
+
+        <!-- Edit Template Modal -->
+        <div id="edit-template-modal" class="modal-overlay" style="display:none" onclick="closeEditTemplateModal(event)">
+          <div class="modal-box" style="max-width:720px;width:95vw" onclick="event.stopPropagation()">
+            <div class="modal-header">
+              <h3>Edit Email Template</h3>
+              <button class="modal-close" onclick="closeEditTemplateModal()">✕</button>
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin:0 0 8px">
+              Use <code>{{name}}</code> for the candidate's first name and <code>{{deadline}}</code> for the deadline date.
+              HTML is supported.
+            </p>
+            <textarea id="template-editor" class="notes-textarea" style="min-height:320px;font-family:monospace;font-size:12px"></textarea>
+            <div class="modal-footer" style="justify-content:space-between">
+              <button class="btn btn-ghost" onclick="resetTemplateToDefault()">↺ Reset to Default</button>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-ghost" onclick="closeEditTemplateModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: Docs Received -->
+    <section class="tab-panel" id="panel-docs">
+      <div class="card docs-card">
+        <div class="docs-header">
+          <div>
+            <h2>Documents Received</h2>
+            <p class="text-muted">Upload signed documents returned by candidates. AI verifies completeness and files are synced to OneDrive.</p>
+          </div>
+          <a id="go-to-onedrive-btn" class="btn btn-outline" href="#" target="_blank" style="white-space:nowrap;align-self:flex-start">
+            ☁️ Go to OneDrive
+          </a>
+        </div>
+
+        <!-- Upload panel -->
+        <div class="docs-upload-panel">
+          <h3 class="docs-section-title">Upload Documents for a Candidate</h3>
+          <div class="docs-upload-row">
+            <select id="docs-candidate-select" class="send-select" style="flex:1">
+              <option value="">— Select candidate —</option>
+            </select>
+            <label class="btn btn-outline docs-file-label">
+              📎 Choose Files
+              <input type="file" id="docs-file-input" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" hidden onchange="docsFileChosen()">
+            </label>
+            <button class="btn btn-primary" id="docs-upload-btn" disabled onclick="uploadReceivedDocs()">
+              ↑ Upload &amp; Verify
+            </button>
+          </div>
+          <div id="docs-file-list" class="docs-file-list" style="display:none"></div>
+          <div id="docs-upload-status" class="docs-upload-status" style="display:none"></div>
+        </div>
+
+        <!-- Received list -->
+        <div id="docs-received-list" class="docs-received-list">
+          <div class="empty-state" style="margin:0;padding:24px 0">
+            <p class="text-muted">No documents received yet.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 6: Indeed Applications -->
+    <section class="tab-panel" id="panel-indeed">
+      <div class="card indeed-card">
+        <div class="indeed-card-header">
+          <div>
+            <h2>🔗 Indeed Applications</h2>
+            <p class="text-muted">Auto-fetched from <strong>admin@onestopkwc.ca</strong> every 60 seconds. Click <strong>View on Indeed →</strong> to open the full resume.</p>
+          </div>
+          <div class="indeed-status" id="indeed-status">
+            <span class="indeed-dot" id="indeed-dot"></span>
+            <span id="indeed-status-text">Connecting…</span>
+          </div>
+        </div>
+        <div id="indeed-apps-inner">
+          <div class="empty-state">
+            <div class="empty-icon">🔗</div>
+            <p>No Indeed applications detected yet.<br>New applications will appear here automatically.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <div id="app-loading">
+    <div class="app-spinner"></div>
+    <p>Loading candidates…</p>
+  </div>
+
+  <!-- Notes Modal -->
+  <div id="notes-modal" class="modal-overlay" style="display:none" onclick="closeNotesModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Interview Notes</h3>
+        <button class="modal-close" onclick="closeNotesModal()">✕</button>
+      </div>
+      <div id="notes-modal-name" class="modal-candidate-name"></div>
+      <textarea id="notes-textarea" class="notes-textarea" placeholder="Add interview notes, feedback, next steps…"></textarea>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeNotesModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNotes()">Save Notes</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
