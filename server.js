@@ -1390,6 +1390,31 @@ app.post('/api/state', async (req, res) => {
 });
 
 
+// ── Startup: warm cache from OneDrive so first request is instant ──
+async function warmStateCache() {
+  // Already have local file — use it
+  if (fs.existsSync(STATE_FILE)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      if (parsed?.candidates?.length) {
+        _stateCache = parsed; _stateCacheAt = Date.now();
+        console.log(`[state] Loaded ${parsed.candidates.length} candidates from local file`);
+        return;
+      }
+    } catch (_) {}
+  }
+  // Try OneDrive
+  const od = await readStateOD();
+  if (od?.candidates?.length) {
+    _stateCache = od; _stateCacheAt = Date.now();
+    try { fs.writeFileSync(STATE_FILE, JSON.stringify(od)); } catch (_) {}
+    console.log(`[state] Restored ${od.candidates.length} candidates from OneDrive`);
+    return;
+  }
+  console.log('[state] No saved state found — starting fresh');
+}
+warmStateCache().catch(e => console.error('[state warm]', e.message));
+
 // ── Start + cleanup old uploads (>24 h) ──────────
 function cleanupOldUploads() {
   const dir = path.join(__dirname, 'uploads');
