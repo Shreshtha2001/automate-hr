@@ -1398,6 +1398,7 @@ app.post('/api/state', async (req, res) => {
 
 // ── Startup: warm cache from OneDrive so first request is instant ──
 async function warmStateCache() {
+  const seedPath = path.join(__dirname, 'seed.json');
   // 1. Already have local file — use it
   if (fs.existsSync(STATE_FILE)) {
     try {
