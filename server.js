@@ -1381,6 +1381,12 @@ app.post('/api/state', async (req, res) => {
     _stateCache = data; _stateCacheAt = Date.now();
     // Write local file (fast, best-effort)
     try { fs.writeFileSync(STATE_FILE, JSON.stringify(data)); } catch (_) {}
+    // Keep seed.json current so restarts always have the latest data
+    try {
+      const seedPath = path.join(__dirname, 'seed.json');
+      const seedData = { candidates: data.candidates.map(({resumeBase64, resumeMimeType, ...rest}) => rest), emailStatus: data.emailStatus };
+      fs.writeFileSync(seedPath, JSON.stringify(seedData));
+    } catch (_) {}
     // Write to OneDrive in background (don't block response)
     writeStateOD(data).catch(e => console.error('[OD state]', e.message));
     res.json({ ok: true });
@@ -1392,7 +1398,7 @@ app.post('/api/state', async (req, res) => {
 
 // ── Startup: warm cache from OneDrive so first request is instant ──
 async function warmStateCache() {
-  // Already have local file — use it
+  // 1. Already have local file — use it
   if (fs.existsSync(STATE_FILE)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
@@ -1403,13 +1409,37 @@ async function warmStateCache() {
       }
     } catch (_) {}
   }
-  // Try OneDrive
+  // 2. Try OneDrive
   const od = await readStateOD();
   if (od?.candidates?.length) {
     _stateCache = od; _stateCacheAt = Date.now();
     try { fs.writeFileSync(STATE_FILE, JSON.stringify(od)); } catch (_) {}
     console.log(`[state] Restored ${od.candidates.length} candidates from OneDrive`);
     return;
+  }
+  // 3. Fall back to STATE_SEED env var (set via Render dashboard or deploy script)
+  if (process.env.STATE_SEED) {
+    try {
+      const seed = JSON.parse(Buffer.from(process.env.STATE_SEED, 'base64').toString('utf8'));
+      if (seed?.candidates?.length) {
+        _stateCache = seed; _stateCacheAt = Date.now();
+        try { fs.writeFileSync(STATE_FILE, JSON.stringify(seed)); } catch (_) {}
+        console.log(`[state] Loaded ${seed.candidates.length} candidates from STATE_SEED env var`);
+        return;
+      }
+    } catch (_) {}
+  }
+  // 4. Fall back to bundled seed file
+  if (fs.existsSync(seedPath)) {
+    try {
+      const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+      if (seed?.candidates?.length) {
+        _stateCache = seed; _stateCacheAt = Date.now();
+        try { fs.writeFileSync(STATE_FILE, JSON.stringify(seed)); } catch (_) {}
+        console.log(`[state] Loaded ${seed.candidates.length} candidates from seed file`);
+        return;
+      }
+    } catch (_) {}
   }
   console.log('[state] No saved state found — starting fresh');
 }
