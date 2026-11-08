@@ -102,7 +102,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .cand-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;transition:box-shadow .15s}
 .cand-card:hover{box-shadow:var(--shadow-md)}
 .cand-card.status-shortlisted{border-top:3px solid var(--green)}
-.cand-card.status-review{border-top:3px solid var(--amber)}
+.cand-card.status-review{border-top:3px solid var(--amber);background:var(--amber-bg)}
 .cand-card.status-rejected{border-top:3px solid var(--red)}
 .cand-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px}
 .status-badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:3px 10px;border-radius:20px}
@@ -157,6 +157,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 /* email modal */
 .email-modal-body{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:300px;overflow-y:auto;margin:12px 0;font-family:monospace}
 .modal-email-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+
+/* resume viewer modal */
+.resume-modal-box{max-width:920px;width:95vw;max-height:92vh;display:flex;flex-direction:column;padding:20px;gap:12px}
+.resume-modal-header{display:flex;justify-content:space-between;align-items:center}
+.resume-modal-frame{width:100%;flex:1;min-height:520px;border:1px solid var(--border);border-radius:8px;background:#f8fafc}
+.btn-view-resume{padding:3px 10px;font-size:11px;border-radius:6px;background:var(--blue-bg);color:var(--blue);border:1.5px solid #bfdbfe;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap}
+.btn-view-resume:hover{background:var(--blue);color:#fff}
+.btn-view-resume:disabled{opacity:.4;cursor:not-allowed}
 
 /* empty state */
 .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
@@ -358,6 +366,22 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
   </div>
 </div>
 
+<!-- Resume viewer modal -->
+<div id="resume-modal" class="modal-overlay" style="display:none" onclick="closeResumeModal()">
+  <div class="modal-box resume-modal-box" onclick="event.stopPropagation()">
+    <div class="resume-modal-header">
+      <h3>📄 <span id="resume-modal-title">Resume</span></h3>
+      <button class="btn btn-ghost" onclick="closeResumeModal()">✕ Close</button>
+    </div>
+    <iframe id="resume-modal-frame" class="resume-modal-frame" src="" title="Resume" style="display:none"></iframe>
+    <div id="resume-modal-nodata" style="padding:60px 20px;text-align:center;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">📄</div>
+      <p>No resume file stored for this candidate.</p>
+      <p style="font-size:12px;margin-top:8px">Screen this candidate's PDF through the app to store the resume here.</p>
+    </div>
+  </div>
+</div>
+
 <!-- Email compose modal -->
 <div id="em-modal" class="modal-overlay" style="display:none" onclick="closeEmailModal()">
   <div class="modal-box" onclick="event.stopPropagation()" style="max-width:560px">
@@ -408,6 +432,8 @@ function saveToDb(candidates) {
     }) : -1;
     const entry = { name:c.name, email:c.email, phone:c.phone, filename:c.filename,
                     status:c.status, criteria:c.criteria, screened: new Date().toISOString() };
+    if (c.resumeBase64)   entry.resumeBase64   = c.resumeBase64;
+    if (c.resumeMimeType) entry.resumeMimeType = c.resumeMimeType;
     if (existing >= 0) state.db[existing] = entry;
     else state.db.push(entry);
   });
@@ -475,6 +501,15 @@ async function readAB(file) {
     r.onload = e => res(e.target.result);
     r.onerror = rej;
     r.readAsArrayBuffer(file);
+  });
+}
+
+function readAsDataURL(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
   });
 }
 
@@ -719,6 +754,12 @@ async function screenResumes() {
     const text = await extractText(state.staged[i]);
     const result = analyzeResume(text, state.staged[i].name);
     result._file = state.staged[i]; // keep File reference for one-click download
+    try {
+      const dataUrl = await readAsDataURL(state.staged[i]);
+      const comma = dataUrl.indexOf(',');
+      result.resumeMimeType = dataUrl.slice(5, dataUrl.indexOf(';'));
+      result.resumeBase64 = dataUrl.slice(comma + 1);
+    } catch(e) { /* skip if read fails */ }
     state.candidates.push(result);
   }
 
@@ -1001,6 +1042,37 @@ function waSendAndNext() {
 }
 function closeWAModal() { document.getElementById('wa-modal').style.display='none'; }
 
+// ── Resume viewer ─────────────────────────────────
+function viewResume(realIdx) {
+  const d = state.db[realIdx];
+  if (!d) return;
+  document.getElementById('resume-modal-title').textContent = d.name || d.filename || 'Resume';
+  const frame = document.getElementById('resume-modal-frame');
+  const nodata = document.getElementById('resume-modal-nodata');
+  if (d.resumeBase64 && d.resumeMimeType) {
+    if (state._resumeUrl) URL.revokeObjectURL(state._resumeUrl);
+    const bytes = atob(d.resumeBase64);
+    const ab = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) ab[i] = bytes.charCodeAt(i);
+    const blob = new Blob([ab], { type: d.resumeMimeType });
+    state._resumeUrl = URL.createObjectURL(blob);
+    frame.src = state._resumeUrl;
+    frame.style.display = 'block';
+    nodata.style.display = 'none';
+  } else {
+    frame.src = '';
+    frame.style.display = 'none';
+    nodata.style.display = 'block';
+  }
+  document.getElementById('resume-modal').style.display = 'flex';
+}
+function closeResumeModal() {
+  document.getElementById('resume-modal').style.display = 'none';
+  const frame = document.getElementById('resume-modal-frame');
+  frame.src = '';
+  if (state._resumeUrl) { URL.revokeObjectURL(state._resumeUrl); state._resumeUrl = null; }
+}
+
 // ── Database tab ─────────────────────────────────
 function renderDbTab() {
   const wrap = document.getElementById('db-table-wrap');
@@ -1029,12 +1101,13 @@ function renderDbTab() {
       <td>${badge}</td>
       <td class="db-date">${dt}</td>
       <td class="db-file">${esc(d.filename||'')}</td>
+      <td><button class="btn-view-resume" onclick="viewResume(${realIdx})" ${d.resumeBase64?'':'disabled title="Screen this resume through the app to store it"'}>📄 View</button></td>
       <td><button class="db-del" onclick="deleteDbEntry(${realIdx})" title="Remove">🗑</button></td>
     </tr>`;
   }).join('');
   wrap.innerHTML = `<div style="overflow-x:auto"><table class="db-table">
     <thead><tr>
-      <th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Date</th><th>File</th><th></th>
+      <th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Date</th><th>File</th><th>Resume</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
