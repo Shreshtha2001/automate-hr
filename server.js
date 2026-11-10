@@ -815,25 +815,13 @@ app.post('/api/send-email', async (req, res) => {
     return res.status(400).json({ error: 'No candidates provided.' });
   }
 
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  if (!process.env.RESEND_API_KEY) {
     return res.status(503).json({ error: 'SMTP not configured. Set SMTP_USER and SMTP_PASS in your .env file.' });
   }
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
-  });
-
   const deadline = getDeadline();
   const sendResults = [];
+  const fromAddr = `OneStop KWC HR <${process.env.SMTP_FROM || 'onboarding@resend.dev'}>`;
 
   for (const candidate of candidates) {
     if (!candidate.email) {
@@ -845,20 +833,30 @@ app.post('/api/send-email', async (req, res) => {
       ? customTemplate.replace(/\{\{name\}\}/g, firstName).replace(/\{\{deadline\}\}/g, deadline)
       : buildEmailHTML(firstName, deadline);
     try {
-      await transporter.sendMail({
-        from: `"OneStop KWC HR" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-        to: candidate.email,
-        replyTo: process.env.SMTP_FROM || process.env.SMTP_USER,
-        subject: 'Next Steps – Handyman / Handyperson at OneStop KWC',
-        text: buildEmailText(firstName, deadline),
-        html: htmlBody,
-        attachments: await getTemplateAttachments(candidate.name),
+      const tmplAttachments = await getTemplateAttachments(candidate.name);
+      const attachments = tmplAttachments.map(a => ({
+        filename: a.filename,
+        content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : a.content,
+      }));
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: fromAddr,
+          to: [candidate.email],
+          reply_to: process.env.SMTP_FROM,
+          subject: 'Next Steps – Handyman / Handyperson at OneStop KWC',
+          text: buildEmailText(firstName, deadline),
+          html: htmlBody,
+          attachments,
+        }),
       });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.message || result.name || 'Resend API error');
       sendResults.push({ name: candidate.name, email: candidate.email, status: 'sent' });
     } catch (err) {
       sendResults.push({ name: candidate.name, email: candidate.email, status: 'failed', error: err.message });
     }
-    // small delay to avoid rate-limiting
     await new Promise(r => setTimeout(r, 300));
   }
 
@@ -879,29 +877,26 @@ app.get('/api/email-template-default', (req, res) => {
 
 // ── SMTP test ────────────────────────────────────
 app.get('/api/smtp-test', async (req, res) => {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    return res.json({ ok: false, error: 'SMTP_USER or SMTP_PASS not set in .env' });
+  if (!process.env.RESEND_API_KEY) {
+    return res.json({ ok: false, error: 'RESEND_API_KEY not set' });
   }
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
-  });
   try {
-    await transporter.verify();
-    await transporter.sendMail({
-      from: `"OneStop KWC HR" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-      to: req.query.to || process.env.SMTP_USER,
-      subject: 'Automate HR — SMTP Test',
-      text: 'SMTP is working correctly.',
+    const to = req.query.to || process.env.SMTP_FROM || process.env.SMTP_USER;
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: `OneStop KWC HR <${process.env.SMTP_FROM || 'onboarding@resend.dev'}>`,
+        to: [to],
+        subject: 'Automate HR — Email Test',
+        text: 'Email sending is working correctly via Resend.',
+      }),
     });
-    res.json({ ok: true, message: `Test email sent to ${req.query.to || process.env.SMTP_USER}` });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.message || result.name || 'Resend error');
+    res.json({ ok: true, message: `Test email sent to ${to}` });
   } catch (err) {
-    res.json({ ok: false, error: err.message, code: err.code });
+    res.json({ ok: false, error: err.message });
   }
 });
 
