@@ -1377,6 +1377,33 @@ app.get('/api/state', async (req, res) => {
   res.json({ candidates: [], emailStatus: {} });
 });
 
+// ── Auto-persist STATE_SEED on Render so data survives restarts ──
+let _seedUpdateTimer = null;
+async function pushStateSeedToRender(stateData) {
+  const apiKey   = process.env.RENDER_API_KEY;
+  const svcId    = process.env.RENDER_SERVICE_ID;
+  if (!apiKey || !svcId) return;
+  try {
+    const stripped = {
+      candidates:  stateData.candidates.map(({ resumeBase64, resumeMimeType, scoreBreakdown, ...rest }) => rest),
+      emailStatus: stateData.emailStatus || {},
+    };
+    const seed = Buffer.from(JSON.stringify(stripped)).toString('base64');
+    const hdrs = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+    const cur  = await fetch(`https://api.render.com/v1/services/${svcId}/env-vars`, { headers: hdrs });
+    const vars = await cur.json();
+    const merged = vars.map(v => ({ key: v.envVar.key, value: v.envVar.key === 'STATE_SEED' ? seed : v.envVar.value }));
+    if (!merged.find(v => v.key === 'STATE_SEED')) merged.push({ key: 'STATE_SEED', value: seed });
+    await fetch(`https://api.render.com/v1/services/${svcId}/env-vars`,
+      { method: 'PUT', headers: hdrs, body: JSON.stringify(merged) });
+    console.log(`[state] STATE_SEED updated on Render (${stripped.candidates.length} candidates)`);
+  } catch (e) { console.error('[state] Render STATE_SEED update failed:', e.message); }
+}
+function scheduleSeedPush(data) {
+  clearTimeout(_seedUpdateTimer);
+  _seedUpdateTimer = setTimeout(() => pushStateSeedToRender(data), 30_000);
+}
+
 app.post('/api/state', async (req, res) => {
   try {
     const { candidates, emailStatus } = req.body || {};
@@ -1393,6 +1420,8 @@ app.post('/api/state', async (req, res) => {
     } catch (_) {}
     // Write to OneDrive in background (don't block response)
     writeStateOD(data).catch(e => console.error('[OD state]', e.message));
+    // Schedule Render STATE_SEED update (debounced 30s) so data survives restarts
+    scheduleSeedPush(data);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
