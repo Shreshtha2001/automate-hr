@@ -1245,7 +1245,11 @@ async function pollIndeedEmails() {
     secure: true,
     auth:   { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     logger: false,
+    connectionTimeout: 15000,
+    greetingTimeout:   10000,
+    socketTimeout:     30000,
   });
+  client.on('error', err => console.error('[IMAP error event]', err.message));
 
   try {
     await client.connect();
@@ -1292,8 +1296,8 @@ async function pollIndeedEmails() {
 }
 
 // Poll on startup and every 60 s
-pollIndeedEmails();
-setInterval(pollIndeedEmails, 60 * 1000);
+pollIndeedEmails().catch(e => console.error('[Indeed poll startup]', e.message));
+setInterval(() => pollIndeedEmails().catch(e => console.error('[Indeed poll]', e.message)), 60 * 1000);
 
 // ── Server-side state persistence (OneDrive-backed) ─
 const DATA_DIR   = path.join(__dirname, 'data');
