@@ -1402,7 +1402,8 @@ async function pushStateSeedToRender(stateData) {
 }
 function scheduleSeedPush(data) {
   clearTimeout(_seedUpdateTimer);
-  _seedUpdateTimer = setTimeout(() => pushStateSeedToRender(data), 30_000);
+  // Fire immediately — no delay so changes persist even if server restarts soon
+  pushStateSeedToRender(data).catch(e => console.error('[state] seed push:', e.message));
 }
 
 app.post('/api/state', async (req, res) => {
